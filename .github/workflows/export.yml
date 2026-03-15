@@ -25,6 +25,8 @@ env:
 jobs:
   export:
     runs-on: ubuntu-latest
+    env:
+      FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -35,6 +37,19 @@ jobs:
       #   with:
       #     repository: 'your-org/your-godot-repo'
       #     path: game
+
+      - name: Verify Godot project and export preset
+        run: |
+          PROJECT_PATH="${{ github.event.inputs.project_path }}"
+          if [ ! -f "$PROJECT_PATH/project.godot" ]; then
+            echo "::error::No project.godot in '$PROJECT_PATH'. Put your Godot project there or set project_path to the folder that contains project.godot."
+            exit 1
+          fi
+          if [ ! -f "$PROJECT_PATH/export_presets.cfg" ]; then
+            echo "::error::No export_presets.cfg in '$PROJECT_PATH'. In Godot: Project → Export → Add… → Web, then save."
+            exit 1
+          fi
+          echo "Godot project and export preset found."
 
       - name: Set Godot version from input
         if: ${{ github.event.inputs.godot_version != '' }}
@@ -47,7 +62,6 @@ jobs:
           godot_executable_download_url: 'https://github.com/godotengine/godot/releases/download/${{ env.GODOT_VERSION }}-stable/Godot_v${{ env.GODOT_VERSION }}-stable_linux.x86_64.headless.zip'
           godot_export_templates_download_url: 'https://github.com/godotengine/godot/releases/download/${{ env.GODOT_VERSION }}-stable/Godot_v${{ env.GODOT_VERSION }}-stable_export_templates.tpz'
           relative_project_path: ${{ github.event.inputs.project_path }}
-          presets_to_export: 'Web'
           cache: true
           use_preset_export_path: true
           archive_output: false
