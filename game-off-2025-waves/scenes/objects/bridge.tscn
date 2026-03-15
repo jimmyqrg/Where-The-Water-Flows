@@ -1,0 +1,84 @@
+[gd_scene load_steps=9 format=3 uid="uid://bvxakbillx1n8"]
+
+[ext_resource type="Texture2D" uid="uid://du54vh5anc2jm" path="res://scenes/big_spritesheet.aseprite" id="1_ica2m"]
+[ext_resource type="Script" uid="uid://b2l3bjhc1kyai" path="res://scenes/objects/scripts/bridge.gd" id="1_wo0ln"]
+[ext_resource type="Script" uid="uid://c1sgyfqknkj8i" path="res://scripts/ysortHelper.gd" id="3_xns4n"]
+[ext_resource type="AudioStream" uid="uid://dvywf2gnhvlb" path="res://audio/sfx/GameOff_Bridge_Extend.ogg" id="4_156ma"]
+[ext_resource type="AudioStream" uid="uid://ba4j1vrfwumf1" path="res://audio/sfx/GameOff_Bridge_Retract.ogg" id="5_dmek5"]
+[ext_resource type="PackedScene" uid="uid://b88evg1mvgox8" path="res://tiles/tilesets/collision_tile_map.tscn" id="6_dmek5"]
+
+[sub_resource type="AudioStreamRandomizer" id="AudioStreamRandomizer_mqb0x"]
+streams_count = 1
+stream_0/stream = ExtResource("4_156ma")
+
+[sub_resource type="AudioStreamRandomizer" id="AudioStreamRandomizer_4glrl"]
+random_pitch = 1.1
+streams_count = 1
+stream_0/stream = ExtResource("5_dmek5")
+
+[node name="BridgeSW" type="Node2D" node_paths=PackedStringArray("required_switches")]
+z_index = 2
+z_as_relative = false
+script = ExtResource("1_wo0ln")
+required_switches = [null]
+
+[node name="mask" type="Sprite2D" parent="."]
+clip_children = 1
+texture = ExtResource("1_ica2m")
+region_enabled = true
+region_rect = Rect2(80, 256, 64, 34)
+
+[node name="bridgeSprite" type="Sprite2D" parent="mask"]
+texture = ExtResource("1_ica2m")
+region_enabled = true
+region_rect = Rect2(80, 304, 64, 34)
+
+[node name="YsortHelper" type="Area2D" parent="."]
+visible = false
+position = Vector2(0, 16)
+script = ExtResource("3_xns4n")
+metadata/_custom_type_script = "uid://c1sgyfqknkj8i"
+
+[node name="CollisionPolygon2D" type="CollisionPolygon2D" parent="YsortHelper"]
+position = Vector2(0, -32)
+polygon = PackedVector2Array(0, 0, -31, 15, 0, 32, 32, 15)
+
+[node name="extendSFX" type="AudioStreamPlayer2D" parent="."]
+stream = SubResource("AudioStreamRandomizer_mqb0x")
+volume_db = -5.0
+max_distance = 400.0
+bus = &"Sfx"
+
+[node name="retractSFX" type="AudioStreamPlayer2D" parent="."]
+stream = SubResource("AudioStreamRandomizer_4glrl")
+volume_db = -5.0
+max_distance = 400.0
+bus = &"Sfx"
+
+[node name="CollisionTileMap" parent="." instance=ExtResource("6_dmek5")]
+visible = false
+modulate = Color(1, 1, 1, 0.4509804)
+position = Vector2(0, -9)
+tile_map_data = PackedByteArray(0, 0, 255, 255, 255, 255, 0, 0, 0, 0, 0, 0, 0, 0, 255, 255, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 255, 255, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0)
+
+[node name="StaticColl_Down_left" parent="." instance=ExtResource("6_dmek5")]
+visible = false
+modulate = Color(1, 1, 0.65882355, 0.42352942)
+position = Vector2(0, -9)
+tile_map_data = PackedByteArray(0, 0, 255, 255, 254, 255, 0, 0, 0, 0, 0, 0, 0, 0, 254, 255, 255, 255, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 2, 0, 0, 0, 0, 0, 0, 0, 0, 0)
+
+[node name="StaticColl_Down_Right" parent="." instance=ExtResource("6_dmek5")]
+visible = false
+modulate = Color(1, 0.21568628, 1, 0.23529412)
+position = Vector2(0, -9)
+tile_map_data = PackedByteArray(0, 0, 0, 0, 254, 255, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 255, 255, 0, 0, 0, 0, 0, 0, 0, 0, 254, 255, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 255, 255, 2, 0, 0, 0, 0, 0, 0, 0, 0, 0)
+
+[node name="playerIsOn" type="Area2D" parent="."]
+visible = false
+
+[node name="CollisionPolygon2D" type="CollisionPolygon2D" parent="playerIsOn"]
+rotation = 0.0046517593
+polygon = PackedVector2Array(-0.09303486, -19.999786, -36.018223, -3.8324943, -35.994965, 1.167452, 0.0976866, 20.999775, 35.00893, 1.8371675, 34.990322, -2.1627896)
+
+[connection signal="body_entered" from="playerIsOn" to="." method="_on_player_is_on_body_entered"]
+[connection signal="body_exited" from="playerIsOn" to="." method="_on_player_is_on_body_exited"]

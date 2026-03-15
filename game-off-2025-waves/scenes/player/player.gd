@@ -1,0 +1,293 @@
+extends CharacterBody2D
+class_name Player
+
+const MOVESPEED : float = 65
+@onready var item_in_hand: ItemInHand = $itemInHand
+
+@export var max_speed: float = 65.0
+var current_speed : float
+@export var acceleration: float = 500.0
+@export var deceleration: float = 1000
+
+@onready var height_map: TileMapLayer = %heightMap
+@onready var walkable: TileMapLayer = %walkable
+
+@export var debug_mark_tile_under_player : bool = false
+@export var debug_wrapper : bool = false
+var debug_tile_world_pos: Vector2 = Vector2.ZERO
+var debug_points: Array[Vector2] = []
+
+@onready var animated_sprite_2d: AnimatedSprite2D = $AnimatedSprite2D
+
+var current_player_height : float = 1.0
+var old_player_height : float = 1.0
+var is_on_platform : bool = false
+var is_swimming : bool = false
+@onready var water_tile_map_layer: TileMapLayer = $AnimatedSprite2D/WaterTileMapLayer
+var current_water_level : int
+var pending_water_check : bool = false
+@onready var swim_grace_timer: Timer = $SwimGraceTimer
+var is_on_bridge : bool = false
+
+#used for movement
+var input_dir: Vector2
+var move_dir: Vector2
+
+#sfx
+@onready var sfx_footstep_grass: AudioStreamPlayer2D = $sfxFootStep/sfx_footstep_grass
+@onready var sfx_footstep_stone: AudioStreamPlayer2D = $sfxFootStep/sfx_footstep_stone
+
+const SURFACE_TYPE_TILE_NAME : String = "surface_type"
+var footstep_cooldown := 0.0 # don't change - used for when to play footstep
+var footstep_interval := 0.38 # the interval for howw often steps are played
+
+#playerWrapper
+@onready var player_wrapper: Node2D = $".."
+var can_move : bool = true
+
+func _ready() -> void:
+	player_wrapper.global_position = global_position #updates wrapper
+	Events.connect("water_level_changed", check_swimming)
+	water_tile_map_layer.visible = false
+	Events.connect("player_freeze",player_freeze)
+
+func _input(event : InputEvent) -> void:
+	if event.is_action_pressed("use"):
+		Events.player_use.emit()
+	if event.is_action_pressed("drop"):
+		Events.player_drop.emit()
+		
+
+
+
+func _process(_delta: float) -> void:
+	if Input.is_action_just_pressed("water_up"):
+		move_water(true)
+	elif Input.is_action_just_pressed("water_down"):
+		move_water(false)
+	
+		
+	#draws the tile under player if export true
+	if debug_mark_tile_under_player:
+		queue_redraw()
+	if debug_wrapper:
+		debug_point(player_wrapper.global_position)
+
+func _physics_process(delta: float) -> void:
+	if can_move and not is_swimming:
+		_movement(delta)
+	_handle_footsteps(delta)
+	
+	if not is_on_platform: #platform change this bool
+		#if player is on platform. height should not be changed by player itself
+		_get_height_tile_under_player()
+
+func player_freeze(player_can_move : bool) -> void:
+	can_move = player_can_move
+
+func check_swimming(new_height: int) -> void:
+	current_water_level = new_height
+
+	if is_on_bridge and current_water_level == current_player_height:
+		#print("fuck that water check, we on bridge and same height")
+		return
+
+	# cancel previous water checks
+	pending_water_check = false
+	swim_grace_timer.stop()
+
+	# start grace time only if entering water
+	if current_player_height < current_water_level:
+		pending_water_check = true
+		swim_grace_timer.start()
+		#print("water entered...")
+	else:
+		if is_swimming:
+			pass
+			#print("not swimming")
+		is_swimming = false
+		water_tile_map_layer.visible = false
+		
+	
+
+func _handle_footsteps(delta: float) -> void:
+	# Must be moving AND on the ground
+	if velocity.length() > 10.0: # threshold so tiny jitter doesn't trigger
+		footstep_cooldown -= delta
+
+		if footstep_cooldown <= 0.0:
+			_play_footstep()
+			GameStats.steps_taken += 1
+			#print(GameStats.steps_taken)
+			footstep_cooldown = footstep_interval
+	else:
+		# Reset when not moving so it plays instantly on next step
+		footstep_cooldown = 0.0
+
+func _play_footstep() -> void:
+	var tile := walkable.get_cell_tile_data(height_map.local_to_map(height_map.to_local(global_position)))
+	
+	if tile:
+		var surface : Variant = tile.get_custom_data(SURFACE_TYPE_TILE_NAME)
+		
+		if surface == "grass":
+			sfx_footstep_grass.play()
+		else:
+			sfx_footstep_stone.play()
+	else: #still play even if data was not found - defaults to stone sfx
+		sfx_footstep_stone.play()
+
+func _movement(delta : float) -> void:
+	input_dir = Input.get_vector("left", "right", "up", "down")
+	_update_animation(input_dir)
+	
+	if input_dir != Vector2.ZERO:
+		var dir_name := _get_direction_name(input_dir)
+		match dir_name: #uncomment below for the isometric movement
+			"northeast":
+				move_dir = Vector2(1, -0.5).normalized()
+			"northwest":
+				move_dir = Vector2(-1, -0.5).normalized()
+			"southeast":
+				move_dir = Vector2(1, 0.5).normalized()
+			"southwest":
+				move_dir = Vector2(-1, 0.5).normalized()
+			_:  #top-down directions
+				move_dir = input_dir
+
+		velocity = velocity.move_toward(move_dir * max_speed, acceleration * delta)
+	else:
+		velocity = velocity.move_toward(Vector2.ZERO, deceleration * delta)
+
+	move_and_slide()
+
+func _update_animation(dir : Vector2) -> void:
+	if dir != Vector2.ZERO:
+		if abs(dir.x) > abs(dir.y):
+			if dir.x > 0:
+				animated_sprite_2d.flip_h = dir.x < 0
+				animated_sprite_2d.play("E_walk")
+			else:
+				animated_sprite_2d.flip_h = dir.x < 0
+				animated_sprite_2d.play("E_walk")
+		else:
+			if dir.y > 0:
+				animated_sprite_2d.play("S_walk")
+			else:
+				animated_sprite_2d.play("N_walk")
+	else:
+		animated_sprite_2d.play("idle")
+
+	
+
+func _get_height_tile_under_player() -> void:
+	if not height_map:
+		push_error("height map not defined correctly on player")
+		return
+	
+	# convert player global position to a cell coordinate
+	var player_pos_to_check: Vector2 = global_position# + Vector2(0, -3)
+	var cell: Vector2i = height_map.local_to_map(height_map.to_local(player_pos_to_check))
+	
+	# Get the tile's TileData object
+	var tile_data: TileData = height_map.get_cell_tile_data(cell)
+	if tile_data == null:
+		#print("No tile found under player at ", cell)
+		return
+
+	var height_value : float = tile_data.get_custom_data("height")
+	current_player_height = height_value
+	if current_player_height != old_player_height and not is_on_bridge:
+		old_player_height = current_player_height
+		Events.emit_signal("player_height_changed", current_player_height)
+		check_swimming(current_water_level)
+	#var water_type : String = tile_data.get_custom_data("water_type")
+	
+	#used for debug draw
+	debug_tile_world_pos = height_map.map_to_local(cell) #enable if need to se what tile under player is
+	#print("height: ", height_value, ", type: ", water_type)
+	
+
+func move_water(is_up : bool) -> void:
+	if GameStats.water_control_unlocked:
+		Events.emit_signal("requested_water_level_direction", is_up)
+	
+func _get_direction_name(v: Vector2) -> String:
+	# 8-direction classification
+	if v.x == 0 and v.y < 0:
+		return "north"
+	elif v.x == 0 and v.y > 0:
+		return "south"
+	elif v.x < 0 and v.y == 0:
+		return "west"
+	elif v.x > 0 and v.y == 0:
+		return "east"
+	elif v.x > 0 and v.y < 0:
+		return "northeast"
+	elif v.x < 0 and v.y < 0:
+		return "northwest"
+	elif v.x > 0 and v.y > 0:
+		return "southeast"
+	elif v.x < 0 and v.y > 0:
+		return "southwest"
+	else:
+		return "idle"
+
+func debug_point(pos_global: Vector2) -> void:
+	debug_points.append(to_local(pos_global))
+	queue_redraw()
+
+func _draw() -> void:
+	
+	for p in debug_points:
+		draw_circle(p, 3, Color.RED)
+	debug_points.clear()
+	
+	if not debug_mark_tile_under_player:
+		return
+
+	var local_pos : Vector2 = to_local(debug_tile_world_pos)
+
+	var half_w := 16.0
+	var half_h := 8.0
+	var points := [
+		local_pos + Vector2(0, -half_h),
+		local_pos + Vector2(half_w, 0),
+		local_pos + Vector2(0, half_h),
+		local_pos + Vector2(-half_w, 0)
+	]
+
+	draw_polyline(points + [points[0]], Color(1.0, 0.067, 1.0, 0.486), 2.0)
+
+func set_cannot_move() -> void:
+	var old_player_pos : Vector2 = global_position
+	player_wrapper.global_position = global_position
+	global_position = old_player_pos
+	
+	can_move = false
+	velocity = Vector2.ZERO
+	animated_sprite_2d.play("idle")
+	var tween := get_tree().create_tween()
+	tween.tween_property(
+		self,
+		"modulate",
+		Color(1, 1, 1, 0),
+		0.4
+	)
+	
+
+
+func _on_swim_grace_timer_timeout() -> void:
+	# If another check happened during the grace period, ignore
+	if not pending_water_check:
+		return
+
+	# check again
+	if current_player_height < current_water_level:
+		is_swimming = true
+		GameStats.stuck_in_water_amount += 1
+		velocity = Vector2.ZERO
+		animated_sprite_2d.play("idle")
+		water_tile_map_layer.visible = true
+
+	pending_water_check = false
