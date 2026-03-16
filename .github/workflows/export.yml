@@ -15,7 +15,7 @@ on:
         required: true
         default: 'game'
       godot_version:
-        description: 'Godot version (e.g. 4.2, 4.3)'
+        description: 'Godot version (optional; leave empty for 4.2)'
         required: false
         default: '4.2'
 
