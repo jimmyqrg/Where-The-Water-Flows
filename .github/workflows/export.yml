@@ -21,12 +21,11 @@ on:
 
 env:
   GODOT_VERSION: '4.2'
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
 
 jobs:
   export:
     runs-on: ubuntu-latest
-    env:
-      FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -42,7 +41,8 @@ jobs:
         run: |
           PROJECT_PATH="${{ github.event.inputs.project_path }}"
           if [ ! -f "$PROJECT_PATH/project.godot" ]; then
-            echo "::error::No project.godot in '$PROJECT_PATH'. Put your Godot project there or set project_path to the folder that contains project.godot."
+            echo "::error::No project.godot in '$PROJECT_PATH'."
+            echo "Either: (1) Add your Godot project to this repo in a folder (e.g. 'game/') and set project_path to that folder, or (2) Uncomment the 'Checkout game repo' step above, set the repository and path, then use that path as project_path."
             exit 1
           fi
           if [ ! -f "$PROJECT_PATH/export_presets.cfg" ]; then
